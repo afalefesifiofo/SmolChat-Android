@@ -332,14 +332,24 @@ std::string LLMRunner::bench_model(int pp, int tg, int pl, int nr) {
     const uint32_t n_ctx = llama_n_ctx(m_ctx);
     LOGi("bench_model: n_ctx = %u", n_ctx);
 
+    // WARMUP PASS: prime the CPU caches and KleidiAI kernels
+    LOGi("bench_model: running warmup pass");
+    common_batch_clear(g_batch);
+    for (int i = 0; i < pp; i++) {
+        common_batch_add(g_batch, 1, i, {0}, false);
+    }
+    g_batch.logits[g_batch.n_tokens - 1] = true;
+    llama_decode(m_ctx, g_batch);
+    llama_memory_clear(llama_get_memory(m_ctx), false);
+
+    // BENCHMARK LOOP
     for (int nri = 0; nri < nr; nri++) {
         common_batch_clear(g_batch);
         for (int i = 0; i < pp; i++) {
             common_batch_add(g_batch, 1, i, {0}, false);
         }
         g_batch.logits[g_batch.n_tokens - 1] = true;
-        llama_memory_clear(llama_get_memory(m_ctx), false);
-
+        
         const auto t_pp_start = ggml_time_us();
         llama_decode(m_ctx, g_batch);
         const auto t_pp_end = ggml_time_us();
@@ -379,6 +389,9 @@ std::string LLMRunner::bench_model(int pp, int tg, int pl, int nr) {
         pp_std = 0;
         tg_std = 0;
     }
+    
+    // TTFT is basically the time it takes to do 1 prompt processing pass (in milliseconds)
+    double ttft_ms = (double(pp) / pp_avg) * 1000.0;
 
     char model_desc[128];
     llama_model_desc(m_model, model_desc, sizeof(model_desc));
@@ -408,6 +421,7 @@ std::string LLMRunner::bench_model(int pp, int tg, int pl, int nr) {
            << pp << " | " << pp_avg << " ± " << pp_std << " |\n";
     result << "| " << model_desc << " | " << model_size << "GiB | " << model_n_params << "B | " << str.str() << " | tg "
            << tg << " | " << tg_avg << " ± " << tg_std << " |\n";
+    result << "\n**TTFT (Time To First Token)**: " << ttft_ms << " ms\n";
     return result.str();
 }
 
