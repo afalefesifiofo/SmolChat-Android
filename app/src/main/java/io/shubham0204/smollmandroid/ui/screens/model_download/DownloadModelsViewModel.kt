@@ -85,6 +85,7 @@ class DownloadModelsViewModel(
                 setProgressDialogTitle("Downloading Model")
                 setProgressDialogText("Connecting...")
                 showProgressDialog()
+                Toast.makeText(context, "Download started in background...", Toast.LENGTH_SHORT).show()
                 _downloadProgress.update { 0 }
             },
             onProgress = { progress ->
@@ -95,6 +96,7 @@ class DownloadModelsViewModel(
                 _downloadProgress.update { null }
                 setProgressDialogTitle("Registering Model")
                 setProgressDialogText("Analyzing GGUF metadata...")
+                Toast.makeText(context, "Analyzing GGUF metadata...", Toast.LENGTH_SHORT).show()
                 CoroutineScope(Dispatchers.IO).launch {
                     val ggufReader = GGUFReader()
                     ggufReader.load(File(destDir, fileName).absolutePath)
